@@ -1,0 +1,71 @@
+config:
+  boot.autostart: false
+  raw.idmap: both 1000 1000
+  security.nesting: "true"
+  user.user-data: |
+    #cloud-config
+    users:
+    - name: me
+      lock_passwd: True
+      groups: [adm, audio, cdrom, dialout, dip, floppy, plugdev, sudo, video]
+      sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+      shell: /bin/bash
+    write_files:
+    - path: /usr/local/bin/mystartup.sh
+      permissions: 0755
+      content: |
+        #!/bin/sh
+        uid=$(id -u)
+        run_dir=/run/user/$uid
+        mkdir -p $run_dir && chmod 700 $run_dir && chown $uid:$uid $run_dir
+        mkdir -p $run_dir/pulse && chmod 700 $run_dir && chown $uid:$uid $run_dir
+        mkdir -p /tmp/.X11-unix && chmod 700 /tmp/.X11-unix && chown $uid:$uid /tmp/.X11-unix
+        for f in \
+          wayland-0 wayland-0.lock \
+          pipewire-0 pipewire-0.lock \
+          pulse/native \
+          ; \
+        do
+          ln -sf /mnt/runuser/$f $run_dir/$f
+        done
+        ln -sf /mnt/tmp/.X11-unix/X0 /tmp/.X11-unix/X0
+    - path: /usr/local/etc/mystartup.service
+      content: |
+        [Unit]
+        After=local-fs.target
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/bin/mystartup.sh
+        [Install]
+        WantedBy=default.target
+    runcmd:
+    - mkdir -p /home/me/.config/systemd/user/default.target.wants
+    - ln -s /usr/local/etc/mystartup.service /home/me/.config/systemd/user/default.target.wants/mystartup.service
+    - ln -s /usr/local/etc/mystartup.service /home/me/.config/systemd/user/mystartup.service
+    - chown -R me:me /home/me
+    - echo 'export WAYLAND_DISPLAY=wayland-0' >> /home/me/.profile
+    - echo 'export XDG_SESSION_TYPE=wayland'  >> /home/me/.profile
+    - echo 'export QT_QPA_PLATFORM=wayland'   >> /home/me/.profile
+    - echo 'export DISPLAY=:0'                >> /home/me/.profile
+    - echo 'export XAUTHORITY=$(echo /mnt/runuser/.mutter-Xwaylandauth.*)' >> /home/me/.profile
+description: Wayland+X+sound LXD profile
+devices:
+  eth0:
+    name: eth0
+    network: lxdbr0
+    type: nic
+  root:
+    path: /
+    pool: default
+    type: disk
+  gpu:
+    type: gpu
+    gid: 44
+  runuser:
+    source: /run/user/1000
+    path: /mnt/runuser/
+    type: disk
+  X0:
+    source: /tmp/.X11-unix/X0
+    path: /mnt/tmp/.X11-unix/X0
+    type: disk
