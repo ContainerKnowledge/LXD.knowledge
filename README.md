@@ -4,3 +4,5 @@ install:
 - https://documentation.ubuntu.com/lxd/en/latest/installing/
 
 initialize: https://documentation.ubuntu.com/lxd/en/latest/howto/initialize/
+
+```usermod -a -G lxd $USER```
